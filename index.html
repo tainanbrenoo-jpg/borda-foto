@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>Photo Booth</title>
+  <title>Photo exp</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -13,8 +12,8 @@
       --bg: #0d0d0d;
       --surface: #161616;
       --border: #2a2a2a;
-      --accent: #e5ff47;
-      --accent-dark: #b8cc2a;
+      --accent: #bc2649;
+      --accent-dark: #8f1a35;
       --text: #f0f0f0;
       --muted: #666;
     }
@@ -139,7 +138,7 @@
       font-size: min(20vw, 120px);
       font-weight: 900;
       color: var(--accent);
-      text-shadow: 0 0 40px #e5ff4788;
+      text-shadow: 0 0 40px #bc264988;
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.15s;
@@ -305,8 +304,8 @@
       gap: 6px;
       font-size: 0.8rem;
       color: var(--accent);
-      background: #e5ff4715;
-      border: 1px solid #e5ff4730;
+      background: #bc264915;
+      border: 1px solid #bc264930;
       border-radius: 20px;
       padding: 4px 10px;
     }
@@ -386,7 +385,7 @@
 
 <!-- Login gate -->
 <div id="login-gate" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:32px">
-  <div style="font-size:2.5rem;font-weight:800;letter-spacing:-1px">Photo<span style="color:var(--accent)">Booth</span></div>
+  <div style="font-size:2.5rem;font-weight:800;letter-spacing:-1px">Photo<span style="color:var(--accent)">exp</span></div>
   <p style="color:var(--text-muted);text-align:center;max-width:280px;margin:0">Faça login com o Google para usar o sistema</p>
   <button onclick="googleLogin()" style="background:white;color:#222;border:none;border-radius:50px;padding:14px 32px;font-size:1rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:10px;box-shadow:0 2px 12px #0004">
     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:20px;height:20px"> Entrar com Google
@@ -394,7 +393,7 @@
 </div>
 
 <header>
-  <div class="logo">Photo<span>Booth</span></div>
+  <div class="logo">Photo<span>exp</span></div>
   <div style="display:flex;align-items:center;gap:12px">
     <div class="dim-badge">1080 × 1920</div>
     <button id="google-login-btn" class="btn-modal btn-modal-ghost" style="padding:7px 14px;font-size:0.8rem;border-radius:50px;white-space:nowrap" onclick="googleLogin()">🔑 Login Google</button>
@@ -412,7 +411,6 @@
 
   <div class="booth-outer" id="booth">
     <video id="video-el" autoplay playsinline></video>
-    <canvas id="vbg-canvas" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2"></canvas>
     <div class="upload-drop" id="upload-drop" style="display:none"
          onclick="document.getElementById('photo-input').click()">
       <div class="big">🖼️</div>
@@ -449,28 +447,6 @@
   <!-- timer -->
   <button class="timer-btn" id="timer-btn" onclick="cycleTimer()">⏱</button>
 
-  <!-- virtual background -->
-  <button class="btn-round" id="vbg-btn" onclick="toggleVbgPanel()" title="Fundo Virtual">🎭</button>
-</div>
-
-<!-- Virtual background panel -->
-<div id="vbg-panel" style="display:none;padding:12px 16px;background:var(--surface);border-top:1px solid var(--border)">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-    <span style="font-size:0.85rem;font-weight:600">🎭 Fundo Virtual</span>
-    <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;cursor:pointer">
-      <input type="checkbox" id="vbg-toggle" onchange="setVbgActive(this.checked)" style="width:16px;height:16px">
-      Ativar
-    </label>
-  </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-    <!-- preset backgrounds -->
-    <div id="vbg-presets" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-    <!-- custom upload -->
-    <label style="cursor:pointer;border:2px dashed var(--border);border-radius:8px;padding:8px 12px;font-size:0.75rem;color:var(--muted);white-space:nowrap">
-      + Meu fundo
-      <input type="file" accept="image/*" style="display:none" onchange="loadCustomVbg(event)">
-    </label>
-  </div>
 </div>
 
 <!-- Batch controls bar -->
@@ -531,20 +507,6 @@
     </div>
     <button class="btn-modal btn-modal-ghost" id="drive-btn" style="width:100%;background:#1a73e822;border-color:#1a73e8;color:#6ab0f5" onclick="saveToDrive()">☁️ Salvar no Google Drive</button>
     <div id="drive-link-row" style="display:none;width:100%;text-align:center;font-size:0.82rem;color:var(--accent)"></div>
-    <!-- AI Background -->
-    <div id="ai-bg-section" style="width:100%;border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <input id="ai-bg-prompt" type="text" placeholder="Ex: praia tropical, cidade à noite, floresta..." style="flex:1;padding:10px 14px;border-radius:50px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.85rem;outline:none">
-        <button onclick="generateAiBg()" id="ai-bg-btn" style="background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:white;border:none;border-radius:50px;padding:10px 18px;font-size:0.85rem;font-weight:600;cursor:pointer;white-space:nowrap">✨ IA</button>
-      </div>
-      <div id="ai-bg-result" style="display:none;text-align:center">
-        <img id="ai-bg-img" style="width:100%;border-radius:10px;margin-bottom:8px" />
-        <div style="display:flex;gap:8px">
-          <button onclick="downloadAiBg()" class="btn-modal btn-modal-ghost" style="flex:1">⬇ Baixar</button>
-          <button onclick="saveAiBgDrive()" class="btn-modal btn-modal-ghost" style="flex:1;border-color:#1a73e8;color:#6ab0f5">☁️ Drive</button>
-        </div>
-      </div>
-    </div>
     <button class="btn-modal btn-modal-ghost" style="width:100%" onclick="retake()">🔄 Tirar Novamente</button>
     <button class="btn-modal btn-modal-ghost" style="width:100%;opacity:0.5" onclick="closeModal()">✕ Fechar</button>
   </div>
@@ -764,7 +726,7 @@
     if (currentSource === 'camera') {
       const video = document.getElementById('video-el');
       const mirror = document.getElementById('mirror-check').checked;
-      const source = (vbgActive && vbgImage) ? document.getElementById('vbg-canvas') : video;
+      const source = video;
       ctx.save();
       if (mirror) { ctx.translate(OUT_W, 0); ctx.scale(-1, 1); }
       const vw = video.videoWidth || OUT_W;
@@ -789,8 +751,6 @@
     document.getElementById('drive-link-row').style.display = 'none';
     document.getElementById('drive-link-row').innerHTML = '';
     document.getElementById('result-modal').classList.add('open');
-    document.getElementById('ai-key-row').style.display = GEMINI_KEY ? 'none' : 'flex';
-    document.getElementById('ai-bg-result').style.display = 'none';
   }
 
   function downloadResult(fmt) {
@@ -861,7 +821,7 @@
 
   function drawStars(ctx, w, h) {
     drawClassic(ctx, w, h);
-    ctx.fillStyle = '#e5ff47';
+    ctx.fillStyle = '#bc2649';
     ctx.font = `${Math.round(w*0.04)}px serif`;
     for (let i = 0; i < 30; i++) {
       const x = Math.random() * w;
@@ -939,220 +899,6 @@
     };
     img.onerror = () => alert('Erro ao carregar a borda.');
     img.src = url;
-  }
-
-  // ── AI Background (Gemini) ──
-  let GEMINI_KEY = localStorage.getItem('gemini_key') || '';
-  let aiBgBlob = null;
-
-  function saveGeminiKey() {
-    const val = document.getElementById('ai-key-input').value.trim();
-    if (!val) return;
-    GEMINI_KEY = val;
-    localStorage.setItem('gemini_key', val);
-    document.getElementById('ai-key-row').style.display = 'none';
-    alert('Chave salva!');
-  }
-
-  async function generateAiBg() {
-    const prompt = document.getElementById('ai-bg-prompt').value.trim();
-    if (!prompt) { alert('Digite um ambiente. Ex: praia tropical, cidade à noite...'); return; }
-
-    const btn = document.getElementById('ai-bg-btn');
-    btn.textContent = '⏳ Gerando...';
-    btn.disabled = true;
-    document.getElementById('ai-bg-result').style.display = 'none';
-
-    try {
-      // 1. Gerar fundo com Pollinations.ai (gratuito, sem chave)
-      const bgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ', high quality, photorealistic, wide angle, no people')}?width=1080&height=1920&nologo=true&seed=${Date.now()}`;
-      const bgImg = await new Promise((res, rej) => {
-        const i = new Image(); i.crossOrigin = 'anonymous';
-        i.onload = () => res(i);
-        i.onerror = () => rej(new Error('Falha ao carregar o fundo gerado. Verifique sua conexão e tente novamente.'));
-        setTimeout(() => rej(new Error('Timeout: geração demorou demais. Tente novamente.')), 30000);
-        i.src = bgUrl;
-      });
-
-      // 3. Recortar pessoa da foto com segmentação
-      const srcCanvas = document.getElementById('result-canvas');
-      const personCanvas = document.createElement('canvas');
-      personCanvas.width = srcCanvas.width; personCanvas.height = srcCanvas.height;
-      await segmentPerson(srcCanvas, personCanvas);
-
-      // 4. Compor: fundo + pessoa
-      const finalCanvas = document.createElement('canvas');
-      finalCanvas.width = OUT_W; finalCanvas.height = OUT_H;
-      const ctx = finalCanvas.getContext('2d');
-      ctx.drawImage(bgImg, 0, 0, OUT_W, OUT_H);
-      ctx.drawImage(personCanvas, 0, 0, OUT_W, OUT_H);
-
-      // 5. Mostrar resultado
-      aiBgBlob = await new Promise(res => finalCanvas.toBlob(res, 'image/jpeg', 0.92));
-      document.getElementById('ai-bg-img').src = finalCanvas.toDataURL('image/jpeg', 0.92);
-      document.getElementById('ai-bg-result').style.display = 'block';
-
-    } catch (e) {
-      alert('Erro ao gerar imagem: ' + e.message);
-    } finally {
-      btn.textContent = '✨ IA';
-      btn.disabled = false;
-    }
-  }
-
-  // segmenta a pessoa do canvas de origem para o canvas de destino (transparente no fundo)
-  async function segmentPerson(srcCanvas, dstCanvas) {
-    return new Promise(async (resolve) => {
-      if (!vbgSegmenter) {
-        vbgSegmenter = new SelfieSegmentation({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}` });
-        vbgSegmenter.setOptions({ modelSelection: 1 });
-        await vbgSegmenter.initialize();
-      }
-      vbgSegmenter.onResults(results => {
-        const ctx = dstCanvas.getContext('2d');
-        ctx.clearRect(0, 0, dstCanvas.width, dstCanvas.height);
-        ctx.drawImage(results.image, 0, 0, dstCanvas.width, dstCanvas.height);
-        ctx.globalCompositeOperation = 'destination-in';
-        ctx.drawImage(results.segmentationMask, 0, 0, dstCanvas.width, dstCanvas.height);
-        ctx.globalCompositeOperation = 'source-over';
-        resolve();
-      });
-      await vbgSegmenter.send({ image: srcCanvas });
-    });
-  }
-
-  function downloadAiBg() {
-    if (!aiBgBlob) return;
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(aiBgBlob);
-    a.download = `photobooth-ai-${Date.now()}.jpg`;
-    a.click();
-  }
-
-  async function saveAiBgDrive() {
-    if (!aiBgBlob) return;
-    if (!accessToken) { alert('Faça login com o Google primeiro.'); return; }
-    const folderId = await getOrCreateFolder('PhotoBooth');
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify({ name: `photobooth-ai-${Date.now()}.jpg`, parents: [folderId] })], { type: 'application/json' }));
-    form.append('file', aiBgBlob);
-    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
-      method: 'POST', headers: { Authorization: 'Bearer ' + accessToken }, body: form
-    });
-    const file = await res.json();
-    await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
-      method: 'POST', headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: 'reader', type: 'anyone' })
-    });
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(file.webViewLink)}`;
-    const row = document.getElementById('drive-link-row');
-    row.style.display = '';
-    row.innerHTML = `<a href="${file.webViewLink}" target="_blank" style="color:var(--accent);display:block;margin-bottom:10px">🔗 Abrir no Drive</a><img src="${qrUrl}" style="border-radius:10px;width:160px;height:160px"><p style="font-size:0.75rem;color:var(--text-muted);margin:6px 0 0">Escaneie para acessar</p>`;
-  }
-
-  // ── Virtual Background ──
-  let vbgActive = false;
-  let vbgImage = null;
-  let vbgSegmenter = null;
-  let vbgAnimFrame = null;
-
-  const VBG_PRESETS = [
-    { label: '🌆', url: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80' },
-    { label: '🏖️', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80' },
-    { label: '🌲', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&q=80' },
-    { label: '🌌', url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&q=80' },
-    { label: '🎉', url: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=800&q=80' },
-  ];
-
-  function buildVbgPresets() {
-    const wrap = document.getElementById('vbg-presets');
-    VBG_PRESETS.forEach(p => {
-      const btn = document.createElement('button');
-      btn.style.cssText = 'width:48px;height:48px;border-radius:8px;border:2px solid var(--border);overflow:hidden;cursor:pointer;padding:0;background:none';
-      btn.title = p.label;
-      btn.innerHTML = `<img src="${p.url}" style="width:100%;height:100%;object-fit:cover">`;
-      btn.onclick = () => loadVbgFromUrl(p.url, btn);
-      wrap.appendChild(btn);
-    });
-  }
-
-  function loadVbgFromUrl(url, btn) {
-    const img = new Image(); img.crossOrigin = 'anonymous';
-    img.onload = () => { vbgImage = img; highlightVbgBtn(btn); };
-    img.src = url;
-  }
-
-  function loadCustomVbg(e) {
-    const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const img = new Image();
-      img.onload = () => { vbgImage = img; highlightVbgBtn(null); };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function highlightVbgBtn(active) {
-    document.querySelectorAll('#vbg-presets button').forEach(b => b.style.borderColor = 'var(--border)');
-    if (active) active.style.borderColor = 'var(--accent)';
-  }
-
-  function toggleVbgPanel() {
-    const p = document.getElementById('vbg-panel');
-    p.style.display = p.style.display === 'none' ? 'block' : 'none';
-  }
-
-  async function setVbgActive(on) {
-    vbgActive = on;
-    const canvas = document.getElementById('vbg-canvas');
-    if (!on) {
-      canvas.style.display = 'none';
-      if (vbgAnimFrame) { cancelAnimationFrame(vbgAnimFrame); vbgAnimFrame = null; }
-      return;
-    }
-    if (!vbgImage) { alert('Escolha um fundo primeiro.'); document.getElementById('vbg-toggle').checked = false; return; }
-    canvas.style.display = '';
-    await initSegmenter();
-    runVbgLoop();
-  }
-
-  async function initSegmenter() {
-    if (vbgSegmenter) return;
-    vbgSegmenter = new SelfieSegmentation({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}` });
-    vbgSegmenter.setOptions({ modelSelection: 1 });
-    vbgSegmenter.onResults(onSegmentResults);
-    await vbgSegmenter.initialize();
-  }
-
-  const vbgOffscreen = document.createElement('canvas');
-  function onSegmentResults(results) {
-    const video = document.getElementById('video-el');
-    const canvas = document.getElementById('vbg-canvas');
-    const vw = video.videoWidth || 640, vh = video.videoHeight || 480;
-    canvas.width = vw; canvas.height = vh;
-    vbgOffscreen.width = vw; vbgOffscreen.height = vh;
-
-    // 1. Extrair só a pessoa no offscreen
-    const off = vbgOffscreen.getContext('2d');
-    off.clearRect(0, 0, vw, vh);
-    off.drawImage(results.image, 0, 0, vw, vh);       // frame da câmera
-    off.globalCompositeOperation = 'destination-in';
-    off.drawImage(results.segmentationMask, 0, 0, vw, vh); // máscara = onde é pessoa
-    off.globalCompositeOperation = 'source-over';
-
-    // 2. Montar: fundo + pessoa por cima
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, vw, vh);
-    ctx.drawImage(vbgImage, 0, 0, vw, vh);            // fundo escolhido
-    ctx.drawImage(vbgOffscreen, 0, 0);                // pessoa por cima
-  }
-
-  function runVbgLoop() {
-    if (!vbgActive) return;
-    const video = document.getElementById('video-el');
-    if (video.readyState >= 2) vbgSegmenter.send({ image: video });
-    vbgAnimFrame = requestAnimationFrame(runVbgLoop);
   }
 
   // ── Batch ──
@@ -1301,7 +1047,6 @@
   // ── Init ──
   buildCustomPresets();
   buildPresets();
-  buildVbgPresets();
   setSource('camera');
   populateCameras();
 
