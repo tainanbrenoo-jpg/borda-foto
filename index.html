@@ -1008,20 +1008,19 @@
     canvas.width = vw; canvas.height = vh;
     vbgOffscreen.width = vw; vbgOffscreen.height = vh;
 
-    const ctx = canvas.getContext('2d');
-    // draw background
-    ctx.drawImage(vbgImage, 0, 0, vw, vh);
-    // mask: keep only person pixels
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.drawImage(results.segmentationMask, 0, 0, vw, vh);
-    ctx.restore();
-    // draw person over background
+    // 1. Extrair só a pessoa no offscreen
     const off = vbgOffscreen.getContext('2d');
-    off.drawImage(vbgImage, 0, 0, vw, vh);
-    off.drawImage(canvas, 0, 0);
+    off.clearRect(0, 0, vw, vh);
+    off.drawImage(results.image, 0, 0, vw, vh);       // frame da câmera
+    off.globalCompositeOperation = 'destination-in';
+    off.drawImage(results.segmentationMask, 0, 0, vw, vh); // máscara = onde é pessoa
+    off.globalCompositeOperation = 'source-over';
+
+    // 2. Montar: fundo + pessoa por cima
+    const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, vw, vh);
-    ctx.drawImage(vbgOffscreen, 0, 0);
+    ctx.drawImage(vbgImage, 0, 0, vw, vh);            // fundo escolhido
+    ctx.drawImage(vbgOffscreen, 0, 0);                // pessoa por cima
   }
 
   function runVbgLoop() {
