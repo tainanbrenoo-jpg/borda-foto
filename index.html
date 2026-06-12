@@ -1044,45 +1044,58 @@
   let accessToken = null;
   let tokenClient = null;
 
-  function onGoogleToken(resp) {
-    if (resp.error) return;
-    accessToken = resp.access_token;
-    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: 'Bearer ' + accessToken }
-    }).then(r => r.json()).then(info => {
-      document.getElementById('google-login-btn').style.display = 'none';
-      const badge = document.getElementById('google-user-badge');
-      badge.style.display = '';
-      badge.textContent = '✅ ' + (info.name || info.email);
-      // renovar token automaticamente 5 min antes de expirar (token dura ~1h)
-      clearTimeout(window._tokenRefreshTimer);
-      window._tokenRefreshTimer = setTimeout(() => tokenClient.requestAccessToken({ prompt: '' }), 55 * 60 * 1000);
-    });
+  function showUserBadge(name) {
+    document.getElementById('google-login-btn').style.display = 'none';
+    const badge = document.getElementById('google-user-badge');
+    badge.style.display = '';
+    badge.textContent = '✅ ' + name;
   }
 
-  function initTokenClient(withPrompt) {
+  function ensureTokenClient() {
+    if (tokenClient) return;
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPES,
-      prompt: withPrompt ? '' : undefined,
-      callback: onGoogleToken,
+      callback: (resp) => {
+        if (resp.error) return;
+        accessToken = resp.access_token;
+        const name = localStorage.getItem('pb_user') || '';
+        if (name) { showUserBadge(name); }
+        else {
+          fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: 'Bearer ' + accessToken }
+          }).then(r => r.json()).then(info => {
+            const display = info.name || info.email || 'Conectado';
+            localStorage.setItem('pb_user', display);
+            localStorage.setItem('pb_autologin', '1');
+            showUserBadge(display);
+          });
+        }
+        // renovar 5 min antes de expirar
+        clearTimeout(window._tokenRefreshTimer);
+        window._tokenRefreshTimer = setTimeout(
+          () => tokenClient.requestAccessToken({ prompt: '' }),
+          55 * 60 * 1000
+        );
+      }
     });
-    tokenClient.requestAccessToken({ prompt: withPrompt ? '' : 'select_account' });
   }
 
-  // tenta login silencioso ao carregar a página
+  // login silencioso ao carregar se já autorizou antes
   window.addEventListener('load', () => {
-    const gsiInterval = setInterval(() => {
+    if (!localStorage.getItem('pb_autologin')) return;
+    const t = setInterval(() => {
       if (!window.google) return;
-      clearInterval(gsiInterval);
-      initTokenClient(true); // silent — sem popup
+      clearInterval(t);
+      ensureTokenClient();
+      tokenClient.requestAccessToken({ prompt: '' }); // sem popup
     }, 300);
   });
 
   function googleLogin() {
     if (!window.google) { alert('Google SDK ainda carregando, aguarde.'); return; }
-    if (!tokenClient) initTokenClient(false);
-    else tokenClient.requestAccessToken({ prompt: 'select_account' });
+    ensureTokenClient();
+    tokenClient.requestAccessToken({ prompt: 'select_account' });
   }
 
   async function saveToDrive() {
