@@ -968,7 +968,9 @@
       const bgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ', high quality, photorealistic, wide angle, no people')}?width=1080&height=1920&nologo=true&seed=${Date.now()}`;
       const bgImg = await new Promise((res, rej) => {
         const i = new Image(); i.crossOrigin = 'anonymous';
-        i.onload = () => res(i); i.onerror = rej;
+        i.onload = () => res(i);
+        i.onerror = () => rej(new Error('Falha ao carregar o fundo gerado. Verifique sua conexão e tente novamente.'));
+        setTimeout(() => rej(new Error('Timeout: geração demorou demais. Tente novamente.')), 30000);
         i.src = bgUrl;
       });
 
