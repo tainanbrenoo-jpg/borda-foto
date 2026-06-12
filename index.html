@@ -1159,10 +1159,23 @@
     });
     const file = await res.json();
 
+    // tornar público (qualquer pessoa com o link pode ver)
+    await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'reader', type: 'anyone' })
+    });
+
+    const link = file.webViewLink;
     btn.textContent = '✅ Salvo no Drive!';
     const row = document.getElementById('drive-link-row');
     row.style.display = '';
-    row.innerHTML = `<a href="${file.webViewLink}" target="_blank" style="color:var(--accent)">🔗 Abrir no Drive</a>`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}`;
+    row.innerHTML = `
+      <a href="${link}" target="_blank" style="color:var(--accent);display:block;margin-bottom:10px">🔗 Abrir no Drive</a>
+      <img src="${qrUrl}" style="border-radius:10px;width:160px;height:160px" alt="QR Code">
+      <p style="font-size:0.75rem;color:var(--text-muted);margin:6px 0 0">Escaneie para acessar a foto</p>
+    `;
   }
 
   async function getOrCreateFolder(name) {
