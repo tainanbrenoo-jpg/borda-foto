@@ -399,6 +399,7 @@
     <button id="google-login-btn" class="btn-modal btn-modal-ghost" style="padding:7px 14px;font-size:0.8rem;border-radius:50px;white-space:nowrap" onclick="googleLogin()">🔑 Login Google</button>
     <span id="google-user-badge" style="display:none;font-size:0.78rem;color:var(--accent)"></span>
     <button id="logout-btn" onclick="googleLogout()" style="display:none;padding:7px 14px;font-size:0.8rem;border-radius:50px;white-space:nowrap;background:transparent;border:1px solid #555;color:var(--text-muted);cursor:pointer">Sair</button>
+    <button onclick="launchClientMode()" style="background:var(--accent);color:#fff;border:none;border-radius:50px;padding:7px 16px;font-size:0.8rem;font-weight:700;cursor:pointer">🎪 Modo Cliente</button>
   </div>
 </header>
 
@@ -476,6 +477,19 @@
   <h3 style="margin-top:16px">Molduras rápidas</h3>
   <div class="presets-grid" id="presets-grid"></div>
 
+  <h3 style="margin-top:16px">Modo Cliente</h3>
+  <div class="sheet-cam-settings">
+    <div class="setting-row">
+      <label>Imagem de fundo</label>
+      <button onclick="document.getElementById('client-bg-input').click()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:0.8rem">📷 Escolher</button>
+      <input type="file" id="client-bg-input" accept="image/*" style="display:none" onchange="loadClientBg(event)">
+    </div>
+    <div id="client-bg-preview" style="display:none;margin-top:8px;border-radius:8px;overflow:hidden;height:80px;position:relative">
+      <img id="client-bg-thumb" style="width:100%;height:100%;object-fit:cover">
+      <button onclick="removeClientBg()" style="position:absolute;top:4px;right:4px;background:#000a;border:none;color:#fff;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.75rem">✕</button>
+    </div>
+  </div>
+
   <h3>Câmera</h3>
   <div class="sheet-cam-settings">
     <div class="setting-row">
@@ -487,6 +501,65 @@
       <input type="checkbox" id="mirror-check" onchange="applyMirror()" checked />
     </div>
   </div>
+</div>
+
+<!-- ══ CLIENT MODE ══ -->
+<div id="client-mode" style="display:none;position:fixed;inset:0;z-index:8000;flex-direction:column;background:#000">
+
+  <!-- top bar (repetir + concluir) -->
+  <div id="cm-topbar" style="display:none;position:absolute;top:0;left:0;right:0;z-index:10;display:none;justify-content:space-between;align-items:center;padding:14px 16px;background:linear-gradient(#000a,transparent)">
+    <button onclick="cmRepeat()" style="background:#fff2;color:#fff;border:1px solid #fff4;border-radius:50px;padding:8px 20px;font-size:0.9rem;cursor:pointer">🔄 Repetir</button>
+    <button onclick="cmFinish()" style="background:var(--accent);color:#fff;border:none;border-radius:50px;padding:8px 20px;font-size:0.9rem;font-weight:700;cursor:pointer">✅ Concluir</button>
+  </div>
+
+  <!-- STEP 1: welcome -->
+  <div id="cm-step-welcome" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;padding:40px">
+    <img id="cm-bg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.55">
+    <div style="position:relative;text-align:center">
+      <div style="font-size:3rem;font-weight:900;letter-spacing:-2px;color:#fff;text-shadow:0 2px 20px #0008">Photo<span style="color:var(--accent)">exp</span></div>
+      <p style="color:#ffffffcc;margin-top:8px;font-size:1rem">Pronto para tirar sua foto?</p>
+    </div>
+    <button onclick="cmGoFrames()" style="position:relative;background:var(--accent);color:#fff;border:none;border-radius:50px;padding:18px 48px;font-size:1.1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 24px #bc264966">Iniciar</button>
+  </div>
+
+  <!-- STEP 2: frame selection -->
+  <div id="cm-step-frames" style="display:none;position:absolute;inset:0;flex-direction:column;background:var(--bg)">
+    <div style="padding:20px 16px 12px;text-align:center;border-bottom:1px solid var(--border)">
+      <div style="font-size:1.2rem;font-weight:700">Escolha uma moldura</div>
+      <div style="font-size:0.8rem;color:var(--muted);margin-top:4px">Selecione uma para continuar</div>
+    </div>
+    <div id="cm-frames-grid" style="flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:16px"></div>
+    <div style="padding:12px 16px 24px">
+      <button id="cm-advance-btn" onclick="cmGoCamera()" disabled style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:50px;padding:16px;font-size:1rem;font-weight:700;cursor:pointer;opacity:0.4">Avançar →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: camera -->
+  <div id="cm-step-camera" style="display:none;position:absolute;inset:0;background:#000">
+    <video id="cm-video" autoplay playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></video>
+    <img id="cm-frame-overlay" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none">
+    <div id="cm-countdown" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:7rem;font-weight:900;color:#fff;text-shadow:0 0 40px #000;pointer-events:none;opacity:0"></div>
+    <div id="cm-tap-hint" onclick="cmStartCountdown()" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:60px;cursor:pointer">
+      <div style="background:#fff2;border:2px solid #fff5;border-radius:20px;padding:18px 40px;text-align:center;backdrop-filter:blur(8px)">
+        <div style="font-size:1.3rem;font-weight:700;color:#fff">Toque aqui</div>
+        <div style="font-size:0.8rem;color:#ffffffaa;margin-top:4px">para iniciar a contagem</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4: result -->
+  <div id="cm-step-result" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;background:var(--bg);overflow-y:auto;padding-top:70px;padding-bottom:24px;gap:0">
+    <canvas id="cm-result-canvas" style="width:100%;max-width:360px;border-radius:10px;display:block;margin:0 auto"></canvas>
+    <div style="display:flex;gap:12px;padding:16px;width:100%;max-width:360px">
+      <button onclick="cmDownload()" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:50px;padding:14px;font-size:0.95rem;font-weight:700;cursor:pointer">⬇ Baixar</button>
+      <button onclick="cmSaveDrive()" id="cm-drive-btn" style="flex:1;background:#1a73e822;color:#6ab0f5;border:1px solid #1a73e8;border-radius:50px;padding:14px;font-size:0.95rem;font-weight:700;cursor:pointer">☁️ Nuvem</button>
+    </div>
+    <div id="cm-qr-row" style="display:none;text-align:center;padding:0 16px 16px">
+      <img id="cm-qr-img" style="width:160px;height:160px;border-radius:10px">
+      <p style="font-size:0.75rem;color:var(--muted);margin-top:6px">Escaneie para acessar</p>
+    </div>
+  </div>
+
 </div>
 
 <!-- Inputs -->
@@ -901,6 +974,210 @@
     img.src = url;
   }
 
+  // ── Client Background ──
+  function loadClientBg(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      localStorage.setItem('client_bg', ev.target.result);
+      showClientBgPreview(ev.target.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function showClientBgPreview(src) {
+    document.getElementById('client-bg-thumb').src = src;
+    document.getElementById('client-bg-preview').style.display = 'block';
+  }
+
+  function removeClientBg() {
+    localStorage.removeItem('client_bg');
+    document.getElementById('client-bg-preview').style.display = 'none';
+    document.getElementById('client-bg-input').value = '';
+  }
+
+  // ── Client Mode ──
+  let cmSelectedFrame = null;
+  let cmVideoStream = null;
+  let cmCounting = false;
+
+  function cmShow(stepId) {
+    ['cm-step-welcome','cm-step-frames','cm-step-camera','cm-step-result'].forEach(id => {
+      const el = document.getElementById(id);
+      el.style.display = 'none';
+    });
+    document.getElementById('cm-topbar').style.display = 'none';
+    const step = document.getElementById(stepId);
+    step.style.display = stepId === 'cm-step-welcome' ? 'flex' :
+                         stepId === 'cm-step-frames' ? 'flex' :
+                         stepId === 'cm-step-result' ? 'flex' : 'block';
+    if (stepId === 'cm-step-result') {
+      document.getElementById('cm-topbar').style.display = 'flex';
+    }
+  }
+
+  function launchClientMode() {
+    const cm = document.getElementById('client-mode');
+    cm.style.display = 'flex';
+    // background image
+    const bg = localStorage.getItem('client_bg');
+    const bgEl = document.getElementById('cm-bg');
+    if (bg) { bgEl.src = bg; bgEl.style.display = 'block'; }
+    else bgEl.style.display = 'none';
+    cmSelectedFrame = null;
+    cmShow('cm-step-welcome');
+  }
+
+  function cmGoFrames() {
+    cmShow('cm-step-frames');
+    cmBuildFrameGrid();
+  }
+
+  async function cmBuildFrameGrid() {
+    const grid = document.getElementById('cm-frames-grid');
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:20px">Carregando molduras...</div>';
+    try {
+      const res = await fetch(GITHUB_API);
+      const files = await res.json();
+      const pngs = files.filter(f => f.name.match(/\.(png|jpg|jpeg|webp)$/i));
+      grid.innerHTML = '';
+      if (!pngs.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--muted)">Nenhuma moldura encontrada</div>'; return; }
+      pngs.forEach(f => {
+        const url = GITHUB_BASE + f.name;
+        const card = document.createElement('div');
+        card.style.cssText = 'aspect-ratio:9/16;border-radius:10px;overflow:hidden;border:3px solid var(--border);cursor:pointer;background:#111;position:relative';
+        card.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover" crossorigin="anonymous">`;
+        card.onclick = () => {
+          document.querySelectorAll('#cm-frames-grid div').forEach(d => d.style.borderColor = 'var(--border)');
+          card.style.borderColor = 'var(--accent)';
+          cmSelectedFrame = url;
+          const btn = document.getElementById('cm-advance-btn');
+          btn.disabled = false; btn.style.opacity = '1';
+        };
+        grid.appendChild(card);
+      });
+    } catch { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--muted)">Erro ao carregar molduras</div>'; }
+  }
+
+  async function cmGoCamera() {
+    if (!cmSelectedFrame) return;
+    cmShow('cm-step-camera');
+    document.getElementById('cm-frame-overlay').src = cmSelectedFrame;
+    document.getElementById('cm-countdown').style.opacity = '0';
+    document.getElementById('cm-tap-hint').style.display = 'flex';
+    cmCounting = false;
+    // start camera
+    if (cmVideoStream) { cmVideoStream.getTracks().forEach(t => t.stop()); }
+    try {
+      cmVideoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      document.getElementById('cm-video').srcObject = cmVideoStream;
+    } catch { alert('Não foi possível acessar a câmera.'); }
+  }
+
+  function cmStartCountdown() {
+    if (cmCounting) return;
+    cmCounting = true;
+    document.getElementById('cm-tap-hint').style.display = 'none';
+    const cdEl = document.getElementById('cm-countdown');
+    cdEl.style.opacity = '1';
+    let n = 3;
+    cdEl.textContent = n;
+    const iv = setInterval(() => {
+      n--;
+      if (n > 0) { cdEl.textContent = n; }
+      else {
+        clearInterval(iv);
+        cdEl.style.opacity = '0';
+        cmTakePhoto();
+      }
+    }, 1000);
+  }
+
+  function cmTakePhoto() {
+    const video = document.getElementById('cm-video');
+    const canvas = document.getElementById('cm-result-canvas');
+    canvas.width = OUT_W; canvas.height = OUT_H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, OUT_W, OUT_H);
+    // draw video
+    const vw = video.videoWidth || OUT_W, vh = video.videoHeight || OUT_H;
+    const scale = Math.max(OUT_W / vw, OUT_H / vh);
+    const sw = vw * scale, sh = vh * scale;
+    ctx.save(); ctx.translate(OUT_W, 0); ctx.scale(-1, 1);
+    ctx.drawImage(video, (OUT_W - sw) / 2, (OUT_H - sh) / 2, sw, sh);
+    ctx.restore();
+    // draw frame
+    if (cmSelectedFrame) {
+      const frameImg = new Image(); frameImg.crossOrigin = 'anonymous';
+      frameImg.onload = () => {
+        ctx.drawImage(frameImg, 0, 0, OUT_W, OUT_H);
+        cmShowResult();
+      };
+      frameImg.src = cmSelectedFrame;
+    } else { cmShowResult(); }
+  }
+
+  function cmShowResult() {
+    if (cmVideoStream) { cmVideoStream.getTracks().forEach(t => t.stop()); cmVideoStream = null; }
+    document.getElementById('cm-qr-row').style.display = 'none';
+    const btn = document.getElementById('cm-drive-btn');
+    btn.textContent = '☁️ Nuvem'; btn.disabled = false;
+    cmShow('cm-step-result');
+  }
+
+  function cmDownload() {
+    const canvas = document.getElementById('cm-result-canvas');
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/jpeg', 0.92);
+    a.download = `photoexp-${Date.now()}.jpg`;
+    a.click();
+  }
+
+  async function cmSaveDrive() {
+    if (!accessToken) {
+      ensureTokenClient();
+      tokenClient.callback = async (resp) => {
+        if (resp.error) { alert('Erro login: ' + resp.error); return; }
+        accessToken = resp.access_token;
+        await cmSaveDrive();
+      };
+      tokenClient.requestAccessToken({ prompt: '' });
+      return;
+    }
+    const btn = document.getElementById('cm-drive-btn');
+    btn.textContent = '⏳ Enviando...'; btn.disabled = true;
+    const canvas = document.getElementById('cm-result-canvas');
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+    const filename = `photoexp-${Date.now()}.jpg`;
+    const folderId = await getOrCreateFolder('PhotoBooth');
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify({ name: filename, parents: [folderId] })], { type: 'application/json' }));
+    form.append('file', blob);
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + accessToken }, body: form
+    });
+    const file = await res.json();
+    await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'reader', type: 'anyone' })
+    });
+    btn.textContent = '✅ Salvo!';
+    const qrRow = document.getElementById('cm-qr-row');
+    document.getElementById('cm-qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(file.webViewLink)}`;
+    qrRow.style.display = 'block';
+  }
+
+  function cmRepeat() {
+    cmSelectedFrame = null;
+    cmGoFrames();
+  }
+
+  function cmFinish() {
+    if (cmVideoStream) { cmVideoStream.getTracks().forEach(t => t.stop()); cmVideoStream = null; }
+    document.getElementById('client-mode').style.display = 'none';
+  }
+
   // ── Batch ──
   let batchFiles = [];
   let batchResults = []; // {name, blob}
@@ -1049,6 +1326,9 @@
   buildPresets();
   setSource('camera');
   populateCameras();
+  // restore client bg preview
+  const savedBg = localStorage.getItem('client_bg');
+  if (savedBg) showClientBgPreview(savedBg);
 
   // ── Google Drive ──
   const CLIENT_ID = '860017648870-u373usjckooa04065ddd5njhqpn07gmd.apps.googleusercontent.com';
