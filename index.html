@@ -960,9 +960,8 @@
       }
     }
     document.getElementById('batch-zip-btn').disabled = false;
-    document.getElementById('batch-drive-btn').disabled = !accessToken;
-    if (!accessToken) alert('✅ Pronto! Clique em "Baixar ZIP" para salvar todas.\n\nPara salvar no Drive, faça login com o Google primeiro.');
-    else alert('✅ Pronto! Escolha baixar ZIP ou salvar no Drive.');
+    document.getElementById('batch-drive-btn').disabled = false;
+    alert('✅ Pronto! Escolha baixar ZIP ou salvar no Drive.');
   }
 
   async function downloadBatchZip() {
@@ -981,8 +980,31 @@
   }
 
   async function uploadBatchDrive() {
-    if (!accessToken) { alert('Faça login com o Google primeiro.'); return; }
-    if (!batchResults.length) return;
+    if (!batchResults.length) { alert('Processe as fotos primeiro (⚡ Aplicar moldura).'); return; }
+    if (!accessToken) {
+      // trigger login then retry
+      if (!window.google) { alert('Google SDK ainda carregando, aguarde.'); return; }
+      if (!tokenClient) {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID,
+          scope: SCOPES,
+          callback: async (resp) => {
+            if (resp.error) { alert('Erro login: ' + resp.error); return; }
+            accessToken = resp.access_token;
+            document.getElementById('google-login-btn').style.display = 'none';
+            await uploadBatchDrive();
+          }
+        });
+      } else {
+        tokenClient.callback = async (resp) => {
+          if (resp.error) { alert('Erro login: ' + resp.error); return; }
+          accessToken = resp.access_token;
+          await uploadBatchDrive();
+        };
+      }
+      tokenClient.requestAccessToken();
+      return;
+    }
     const btn = document.getElementById('batch-drive-btn');
     btn.disabled = true;
     btn.textContent = '⏳ Enviando...';
