@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>Photo Booth</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -411,6 +412,7 @@
 
   <div class="booth-outer" id="booth">
     <video id="video-el" autoplay playsinline></video>
+    <canvas id="vbg-canvas" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2"></canvas>
     <div class="upload-drop" id="upload-drop" style="display:none"
          onclick="document.getElementById('photo-input').click()">
       <div class="big">🖼️</div>
@@ -446,6 +448,29 @@
 
   <!-- timer -->
   <button class="timer-btn" id="timer-btn" onclick="cycleTimer()">⏱</button>
+
+  <!-- virtual background -->
+  <button class="btn-round" id="vbg-btn" onclick="toggleVbgPanel()" title="Fundo Virtual">🎭</button>
+</div>
+
+<!-- Virtual background panel -->
+<div id="vbg-panel" style="display:none;padding:12px 16px;background:var(--surface);border-top:1px solid var(--border)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <span style="font-size:0.85rem;font-weight:600">🎭 Fundo Virtual</span>
+    <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;cursor:pointer">
+      <input type="checkbox" id="vbg-toggle" onchange="setVbgActive(this.checked)" style="width:16px;height:16px">
+      Ativar
+    </label>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <!-- preset backgrounds -->
+    <div id="vbg-presets" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    <!-- custom upload -->
+    <label style="cursor:pointer;border:2px dashed var(--border);border-radius:8px;padding:8px 12px;font-size:0.75rem;color:var(--muted);white-space:nowrap">
+      + Meu fundo
+      <input type="file" accept="image/*" style="display:none" onchange="loadCustomVbg(event)">
+    </label>
+  </div>
 </div>
 
 <!-- Batch controls bar -->
@@ -725,13 +750,14 @@
     if (currentSource === 'camera') {
       const video = document.getElementById('video-el');
       const mirror = document.getElementById('mirror-check').checked;
+      const source = (vbgActive && vbgImage) ? document.getElementById('vbg-canvas') : video;
       ctx.save();
       if (mirror) { ctx.translate(OUT_W, 0); ctx.scale(-1, 1); }
       const vw = video.videoWidth || OUT_W;
       const vh = video.videoHeight || OUT_H;
       const scale = Math.max(OUT_W / vw, OUT_H / vh);
       const sw = vw * scale, sh = vh * scale;
-      ctx.drawImage(video, (OUT_W - sw) / 2, (OUT_H - sh) / 2, sw, sh);
+      ctx.drawImage(source, (OUT_W - sw) / 2, (OUT_H - sh) / 2, sw, sh);
       ctx.restore();
     } else if (uploadedPhoto) {
       const img = uploadedPhoto;
@@ -899,6 +925,112 @@
     img.src = url;
   }
 
+  // ── Virtual Background ──
+  let vbgActive = false;
+  let vbgImage = null;
+  let vbgSegmenter = null;
+  let vbgAnimFrame = null;
+
+  const VBG_PRESETS = [
+    { label: '🌆', url: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80' },
+    { label: '🏖️', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80' },
+    { label: '🌲', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&q=80' },
+    { label: '🌌', url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&q=80' },
+    { label: '🎉', url: 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=800&q=80' },
+  ];
+
+  function buildVbgPresets() {
+    const wrap = document.getElementById('vbg-presets');
+    VBG_PRESETS.forEach(p => {
+      const btn = document.createElement('button');
+      btn.style.cssText = 'width:48px;height:48px;border-radius:8px;border:2px solid var(--border);overflow:hidden;cursor:pointer;padding:0;background:none';
+      btn.title = p.label;
+      btn.innerHTML = `<img src="${p.url}" style="width:100%;height:100%;object-fit:cover">`;
+      btn.onclick = () => loadVbgFromUrl(p.url, btn);
+      wrap.appendChild(btn);
+    });
+  }
+
+  function loadVbgFromUrl(url, btn) {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => { vbgImage = img; highlightVbgBtn(btn); };
+    img.src = url;
+  }
+
+  function loadCustomVbg(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => { vbgImage = img; highlightVbgBtn(null); };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function highlightVbgBtn(active) {
+    document.querySelectorAll('#vbg-presets button').forEach(b => b.style.borderColor = 'var(--border)');
+    if (active) active.style.borderColor = 'var(--accent)';
+  }
+
+  function toggleVbgPanel() {
+    const p = document.getElementById('vbg-panel');
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function setVbgActive(on) {
+    vbgActive = on;
+    const canvas = document.getElementById('vbg-canvas');
+    if (!on) {
+      canvas.style.display = 'none';
+      if (vbgAnimFrame) { cancelAnimationFrame(vbgAnimFrame); vbgAnimFrame = null; }
+      return;
+    }
+    if (!vbgImage) { alert('Escolha um fundo primeiro.'); document.getElementById('vbg-toggle').checked = false; return; }
+    canvas.style.display = '';
+    await initSegmenter();
+    runVbgLoop();
+  }
+
+  async function initSegmenter() {
+    if (vbgSegmenter) return;
+    vbgSegmenter = new SelfieSegmentation({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}` });
+    vbgSegmenter.setOptions({ modelSelection: 1 });
+    vbgSegmenter.onResults(onSegmentResults);
+    await vbgSegmenter.initialize();
+  }
+
+  const vbgOffscreen = document.createElement('canvas');
+  function onSegmentResults(results) {
+    const video = document.getElementById('video-el');
+    const canvas = document.getElementById('vbg-canvas');
+    const vw = video.videoWidth || 640, vh = video.videoHeight || 480;
+    canvas.width = vw; canvas.height = vh;
+    vbgOffscreen.width = vw; vbgOffscreen.height = vh;
+
+    const ctx = canvas.getContext('2d');
+    // draw background
+    ctx.drawImage(vbgImage, 0, 0, vw, vh);
+    // mask: keep only person pixels
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(results.segmentationMask, 0, 0, vw, vh);
+    ctx.restore();
+    // draw person over background
+    const off = vbgOffscreen.getContext('2d');
+    off.drawImage(vbgImage, 0, 0, vw, vh);
+    off.drawImage(canvas, 0, 0);
+    ctx.clearRect(0, 0, vw, vh);
+    ctx.drawImage(vbgOffscreen, 0, 0);
+  }
+
+  function runVbgLoop() {
+    if (!vbgActive) return;
+    const video = document.getElementById('video-el');
+    if (video.readyState >= 2) vbgSegmenter.send({ image: video });
+    vbgAnimFrame = requestAnimationFrame(runVbgLoop);
+  }
+
   // ── Batch ──
   let batchFiles = [];
   let batchResults = []; // {name, blob}
@@ -1045,6 +1177,7 @@
   // ── Init ──
   buildCustomPresets();
   buildPresets();
+  buildVbgPresets();
   setSource('camera');
   populateCameras();
 
