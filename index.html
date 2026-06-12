@@ -531,6 +531,24 @@
     </div>
     <button class="btn-modal btn-modal-ghost" id="drive-btn" style="width:100%;background:#1a73e822;border-color:#1a73e8;color:#6ab0f5" onclick="saveToDrive()">☁️ Salvar no Google Drive</button>
     <div id="drive-link-row" style="display:none;width:100%;text-align:center;font-size:0.82rem;color:var(--accent)"></div>
+    <!-- AI Background -->
+    <div id="ai-bg-section" style="width:100%;border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+      <div id="ai-key-row" style="display:flex;gap:8px;margin-bottom:8px">
+        <input id="ai-key-input" type="password" placeholder="Chave Gemini API (AIza...)" style="flex:1;padding:10px 14px;border-radius:50px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.82rem;outline:none">
+        <button onclick="saveGeminiKey()" style="background:var(--accent);color:#000;border:none;border-radius:50px;padding:10px 16px;font-size:0.82rem;font-weight:700;cursor:pointer">Salvar</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input id="ai-bg-prompt" type="text" placeholder="Ex: praia tropical, cidade à noite, floresta..." style="flex:1;padding:10px 14px;border-radius:50px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.85rem;outline:none">
+        <button onclick="generateAiBg()" id="ai-bg-btn" style="background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:white;border:none;border-radius:50px;padding:10px 18px;font-size:0.85rem;font-weight:600;cursor:pointer;white-space:nowrap">✨ IA</button>
+      </div>
+      <div id="ai-bg-result" style="display:none;text-align:center">
+        <img id="ai-bg-img" style="width:100%;border-radius:10px;margin-bottom:8px" />
+        <div style="display:flex;gap:8px">
+          <button onclick="downloadAiBg()" class="btn-modal btn-modal-ghost" style="flex:1">⬇ Baixar</button>
+          <button onclick="saveAiBgDrive()" class="btn-modal btn-modal-ghost" style="flex:1;border-color:#1a73e8;color:#6ab0f5">☁️ Drive</button>
+        </div>
+      </div>
+    </div>
     <button class="btn-modal btn-modal-ghost" style="width:100%" onclick="retake()">🔄 Tirar Novamente</button>
     <button class="btn-modal btn-modal-ghost" style="width:100%;opacity:0.5" onclick="closeModal()">✕ Fechar</button>
   </div>
@@ -775,6 +793,8 @@
     document.getElementById('drive-link-row').style.display = 'none';
     document.getElementById('drive-link-row').innerHTML = '';
     document.getElementById('result-modal').classList.add('open');
+    document.getElementById('ai-key-row').style.display = GEMINI_KEY ? 'none' : 'flex';
+    document.getElementById('ai-bg-result').style.display = 'none';
   }
 
   function downloadResult(fmt) {
@@ -923,6 +943,109 @@
     };
     img.onerror = () => alert('Erro ao carregar a borda.');
     img.src = url;
+  }
+
+  // ── AI Background (Gemini) ──
+  let GEMINI_KEY = localStorage.getItem('gemini_key') || '';
+  let aiBgBlob = null;
+
+  function saveGeminiKey() {
+    const val = document.getElementById('ai-key-input').value.trim();
+    if (!val) return;
+    GEMINI_KEY = val;
+    localStorage.setItem('gemini_key', val);
+    document.getElementById('ai-key-row').style.display = 'none';
+    alert('Chave salva!');
+  }
+
+  async function generateAiBg() {
+    if (!GEMINI_KEY) {
+      document.getElementById('ai-key-row').style.display = 'flex';
+      alert('Digite sua chave Gemini API primeiro.');
+      return;
+    }
+    const prompt = document.getElementById('ai-bg-prompt').value.trim();
+    if (!prompt) { alert('Digite um ambiente. Ex: praia tropical, cidade à noite...'); return; }
+
+    const btn = document.getElementById('ai-bg-btn');
+    btn.textContent = '⏳ Gerando...';
+    btn.disabled = true;
+    document.getElementById('ai-bg-result').style.display = 'none';
+
+    try {
+      // pegar foto atual como base64
+      const canvas = document.getElementById('result-canvas');
+      const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+
+      const body = {
+        contents: [{
+          parts: [
+            { text: `You are a photo editor. Take this photo of a person and place them naturally into this environment: ${prompt}. Keep the person looking realistic and well-integrated into the scene. Return only the edited image.` },
+            { inline_data: { mime_type: 'image/jpeg', data: base64 } }
+          ]
+        }],
+        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+      };
+
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_KEY}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      );
+      const data = await res.json();
+
+      if (data.error) throw new Error(data.error.message);
+
+      // encontrar parte de imagem na resposta
+      const imgPart = data.candidates?.[0]?.content?.parts?.find(p => p.inline_data);
+      if (!imgPart) throw new Error('Nenhuma imagem gerada. Tente outro prompt.');
+
+      const imgData = imgPart.inline_data.data;
+      const mime = imgPart.inline_data.mime_type;
+      const src = `data:${mime};base64,${imgData}`;
+
+      // converter para blob para download/drive
+      const byteChars = atob(imgData);
+      const byteArr = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+      aiBgBlob = new Blob([byteArr], { type: mime });
+
+      document.getElementById('ai-bg-img').src = src;
+      document.getElementById('ai-bg-result').style.display = 'block';
+    } catch (e) {
+      alert('Erro ao gerar imagem: ' + e.message);
+    } finally {
+      btn.textContent = '✨ IA';
+      btn.disabled = false;
+    }
+  }
+
+  function downloadAiBg() {
+    if (!aiBgBlob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(aiBgBlob);
+    a.download = `photobooth-ai-${Date.now()}.jpg`;
+    a.click();
+  }
+
+  async function saveAiBgDrive() {
+    if (!aiBgBlob) return;
+    if (!accessToken) { alert('Faça login com o Google primeiro.'); return; }
+    const folderId = await getOrCreateFolder('PhotoBooth');
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify({ name: `photobooth-ai-${Date.now()}.jpg`, parents: [folderId] })], { type: 'application/json' }));
+    form.append('file', aiBgBlob);
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + accessToken }, body: form
+    });
+    const file = await res.json();
+    await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}/permissions`, {
+      method: 'POST', headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'reader', type: 'anyone' })
+    });
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(file.webViewLink)}`;
+    const row = document.getElementById('drive-link-row');
+    row.style.display = '';
+    row.innerHTML = `<a href="${file.webViewLink}" target="_blank" style="color:var(--accent);display:block;margin-bottom:10px">🔗 Abrir no Drive</a><img src="${qrUrl}" style="border-radius:10px;width:160px;height:160px"><p style="font-size:0.75rem;color:var(--text-muted);margin:6px 0 0">Escaneie para acessar</p>`;
   }
 
   // ── Virtual Background ──
