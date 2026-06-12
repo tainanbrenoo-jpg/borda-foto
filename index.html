@@ -383,6 +383,15 @@
 </head>
 <body>
 
+<!-- Login gate -->
+<div id="login-gate" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:32px">
+  <div style="font-size:2.5rem;font-weight:800;letter-spacing:-1px">Photo<span style="color:var(--accent)">Booth</span></div>
+  <p style="color:var(--text-muted);text-align:center;max-width:280px;margin:0">Faça login com o Google para usar o sistema</p>
+  <button onclick="googleLogin()" style="background:white;color:#222;border:none;border-radius:50px;padding:14px 32px;font-size:1rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:10px;box-shadow:0 2px 12px #0004">
+    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:20px;height:20px"> Entrar com Google
+  </button>
+</div>
+
 <header>
   <div class="logo">Photo<span>Booth</span></div>
   <div style="display:flex;align-items:center;gap:12px">
@@ -1049,6 +1058,7 @@
     const badge = document.getElementById('google-user-badge');
     badge.style.display = '';
     badge.textContent = '✅ ' + name;
+    document.getElementById('login-gate').style.display = 'none';
   }
 
   function ensureTokenClient() {
@@ -1082,19 +1092,21 @@
     });
   }
 
-  // login silencioso ao carregar se já autorizou antes
+  // ao carregar: login silencioso se já autorizou, senão mostra gate
   window.addEventListener('load', () => {
-    if (!localStorage.getItem('pb_autologin')) return;
-    // mostrar nome salvo imediatamente (token ainda carregando)
-    const savedName = localStorage.getItem('pb_user');
-    if (savedName) showUserBadge(savedName);
-    const t = setInterval(() => {
-      if (!window.google) return;
-      clearInterval(t);
-      ensureTokenClient();
-      const hint = localStorage.getItem('pb_email') || '';
-      tokenClient.requestAccessToken({ prompt: '', login_hint: hint }); // sem popup
-    }, 300);
+    if (localStorage.getItem('pb_autologin')) {
+      const savedName = localStorage.getItem('pb_user');
+      if (savedName) showUserBadge(savedName); // esconde gate imediatamente
+      const t = setInterval(() => {
+        if (!window.google) return;
+        clearInterval(t);
+        ensureTokenClient();
+        const hint = localStorage.getItem('pb_email') || '';
+        tokenClient.requestAccessToken({ prompt: '', login_hint: hint });
+      }, 300);
+    } else {
+      document.getElementById('login-gate').style.display = 'flex';
+    }
   });
 
   function googleLogin() {
