@@ -1092,11 +1092,11 @@
     });
   }
 
-  // ao carregar: login silencioso se já autorizou, senão mostra gate
+  // sempre mostra tela de login ao abrir
   window.addEventListener('load', () => {
+    document.getElementById('login-gate').style.display = 'flex';
+    // se já logou antes, tenta renovar token silenciosamente em segundo plano
     if (localStorage.getItem('pb_autologin')) {
-      const savedName = localStorage.getItem('pb_user');
-      if (savedName) showUserBadge(savedName); // esconde gate imediatamente
       const t = setInterval(() => {
         if (!window.google) return;
         clearInterval(t);
@@ -1104,8 +1104,6 @@
         const hint = localStorage.getItem('pb_email') || '';
         tokenClient.requestAccessToken({ prompt: '', login_hint: hint });
       }, 300);
-    } else {
-      document.getElementById('login-gate').style.display = 'flex';
     }
   });
 
