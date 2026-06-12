@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Photo Booth</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0d;
+      --surface: #161616;
+      --border: #2a2a2a;
+      --accent: #e5ff47;
+      --accent-dark: #b8cc2a;
+      --text: #f0f0f0;
+      --muted: #666;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .logo { font-size: 1.1rem; font-weight: 800; }
+    .logo span { color: var(--accent); }
+    .dim-badge { font-size: 0.72rem; color: var(--muted); }
+
+    /* ── Main area ── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+      padding: 12px 12px 0;
+      gap: 10px;
+    }
+
+    /* Source tabs */
+    .source-tabs {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      padding: 8px 22px;
+      border-radius: 50px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
+
+    /* Booth box — always 9:16 */
+    .booth-outer {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      aspect-ratio: 9/16;
+      max-width: 100%;
+      /* on tall screens constrain width so booth doesn't overflow */
+      max-height: calc(100dvh - 200px);
+    }
+
+    .booth-outer > * {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 12px;
+    }
+
+    #video-el {
+      object-fit: cover;
+      background: #111;
+      display: none;
+    }
+
+    .upload-drop {
+      border: 2px dashed var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.88rem;
+      gap: 8px;
+      transition: all 0.2s;
+      background: #111;
+    }
+
+    .upload-drop .big { font-size: 2.5rem; }
+    .upload-drop:active { background: #1a1a1a; }
+
+    #uploaded-img {
+      object-fit: cover;
+      display: none;
+    }
+
+    #frame-overlay {
+      pointer-events: none;
+      object-fit: fill;
+      display: none;
+    }
+
+    .countdown-overlay {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: min(20vw, 120px);
+      font-weight: 900;
+      color: var(--accent);
+      text-shadow: 0 0 40px #e5ff4788;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    /* ── Bottom controls ── */
+    .bottom-bar {
+      flex-shrink: 0;
+      width: 100%;
+      padding: 10px 16px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .btn-round {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 1.2rem;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+
+    .btn-round:active { background: #2a2a2a; }
+
+    .btn-capture {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 50px;
+      background: var(--accent);
+      color: #000;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-capture:disabled { opacity: 0.3; }
+    .btn-capture:active { background: var(--accent-dark); }
+
+    .timer-btn {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+
+    .timer-btn.active-timer {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── Bottom Sheet (frames) ── */
+    .sheet-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000a;
+      z-index: 50;
+    }
+
+    .sheet-overlay.open { display: block; }
+
+    .sheet {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      border-top: 1px solid var(--border);
+      padding: 0 16px 32px;
+      z-index: 51;
+      max-height: 80dvh;
+      overflow-y: auto;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+    }
+
+    .sheet.open { transform: translateY(0); }
+
+    .sheet-handle {
+      width: 40px; height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 12px auto 16px;
+    }
+
+    .sheet h3 { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); margin-bottom: 12px; }
+
+    .frame-upload-sheet {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+      transition: all 0.2s;
+    }
+
+    .frame-upload-sheet:active { background: #1a1a1a; border-color: var(--accent); }
+
+    .presets-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .preset-item {
+      aspect-ratio: 9/16;
+      border-radius: 6px;
+      border: 2px solid var(--border);
+      cursor: pointer;
+      background: repeating-conic-gradient(#222 0% 25%, #2a2a2a 0% 50%) 0 0 / 8px 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      transition: border-color 0.15s;
+    }
+
+    .preset-item.active, .preset-item:active { border-color: var(--accent); }
+
+    .sheet-cam-settings {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .setting-row label { font-size: 0.85rem; color: var(--muted); }
+
+    select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      max-width: 180px;
+    }
+
+    .frame-active-badge {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: var(--accent);
+      background: #e5ff4715;
+      border: 1px solid #e5ff4730;
+      border-radius: 20px;
+      padding: 4px 10px;
+    }
+
+    .frame-active-badge.show { display: flex; }
+
+    /* ── Result modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000c;
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 20px;
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      max-height: 95dvh;
+      overflow-y: auto;
+    }
+
+    .modal h2 { font-size: 1rem; font-weight: 700; }
+
+    .result-wrap {
+      width: 100%;
+      aspect-ratio: 9/16;
+      max-height: 55dvh;
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #result-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .modal-btns { display: flex; gap: 10px; width: 100%; }
+
+    .btn-modal {
+      flex: 1;
+      padding: 12px;
+      border-radius: 50px;
+      border: none;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn-modal-accent { background: var(--accent); color: #000; }
+    .btn-modal-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+    #photo-input, #frame-input { display: none; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Photo<span>Booth</span></div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="dim-badge">1080 × 1920</div>
+    <button id="google-login-btn" class="btn-modal btn-modal-ghost" style="padding:7px 14px;font-size:0.8rem;border-radius:50px;white-space:nowrap" onclick="googleLogin()">🔑 Login Google</button>
+    <span id="google-user-badge" style="display:none;font-size:0.78rem;color:var(--accent)"></span>
+  </div>
+</header>
+
+<div class="main">
+  <div class="source-tabs">
+    <button class="tab-btn active" id="tab-cam" onclick="setSource('camera')">📷 Câmera</button>
+    <button class="tab-btn" id="tab-upload" onclick="setSource('upload')">📁 Upload</button>
+  </div>
+
+  <div class="booth-outer" id="booth">
+    <video id="video-el" autoplay playsinline></video>
+    <div class="upload-drop" id="upload-drop" style="display:none"
+         onclick="document.getElementById('photo-input').click()">
+      <div class="big">🖼️</div>
+      <strong style="color:var(--text)">Toque para escolher foto</strong>
+      <span style="font-size:0.78rem">JPG · PNG · WebP</span>
+    </div>
+    <img id="uploaded-img" src="" alt="" />
+    <img id="frame-overlay" src="" alt="" />
+    <div class="countdown-overlay" id="countdown-el"></div>
+  </div>
+</div>
+
+<!-- Bottom bar -->
+<div class="bottom-bar">
+  <!-- frames button -->
+  <button class="btn-round" onclick="openSheet()" title="Molduras">🖼️</button>
+
+  <!-- capture -->
+  <button class="btn-capture" id="capture-btn" onclick="triggerCapture()" disabled>
+    📸 Tirar Foto
+  </button>
+
+  <!-- timer -->
+  <button class="timer-btn" id="timer-btn" onclick="cycleTimer()">⏱</button>
+</div>
+
+<!-- Bottom sheet -->
+<div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+
+  <h3>Moldura personalizada</h3>
+  <div class="frame-upload-sheet" onclick="document.getElementById('frame-input').click()">
+    🖼️ <strong style="color:var(--text)">Toque para subir moldura</strong> — PNG transparente
+  </div>
+
+  <div class="frame-active-badge" id="frame-badge">
+    ✅ Moldura ativa &nbsp;<button style="background:none;border:none;color:var(--muted);cursor:pointer" onclick="removeFrame()">✕</button>
+  </div>
+
+  <h3 style="margin-top:16px">Molduras rápidas</h3>
+  <div class="presets-grid" id="presets-grid"></div>
+
+  <h3>Câmera</h3>
+  <div class="sheet-cam-settings">
+    <div class="setting-row">
+      <label>Dispositivo</label>
+      <select id="cam-select" onchange="startCamera()"></select>
+    </div>
+    <div class="setting-row">
+      <label>Espelhar imagem</label>
+      <input type="checkbox" id="mirror-check" onchange="applyMirror()" checked />
+    </div>
+  </div>
+</div>
+
+<!-- Inputs -->
+<input type="file" id="photo-input" accept="image/*" onchange="loadPhotoFile(event.target.files[0])" />
+<input type="file" id="frame-input" accept="image/*" onchange="loadFrameFile(event.target.files[0])" />
+
+<!-- Result modal -->
+<div class="modal-overlay" id="result-modal">
+  <div class="modal">
+    <h2>✅ Foto tirada!</h2>
+    <div class="result-wrap">
+      <canvas id="result-canvas"></canvas>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-modal btn-modal-accent" onclick="downloadResult('png')">⬇ PNG</button>
+      <button class="btn-modal btn-modal-ghost" onclick="downloadResult('jpg')">⬇ JPG</button>
+    </div>
+    <button class="btn-modal btn-modal-ghost" id="drive-btn" style="width:100%;background:#1a73e822;border-color:#1a73e8;color:#6ab0f5" onclick="saveToDrive()">☁️ Salvar no Google Drive</button>
+    <div id="drive-link-row" style="display:none;width:100%;text-align:center;font-size:0.82rem;color:var(--accent)"></div>
+    <button class="btn-modal btn-modal-ghost" style="width:100%" onclick="retake()">🔄 Tirar Novamente</button>
+    <button class="btn-modal btn-modal-ghost" style="width:100%;opacity:0.5" onclick="closeModal()">✕ Fechar</button>
+  </div>
+</div>
+
+<script>
+  const OUT_W = 1080, OUT_H = 1920;
+
+  let frameImage = null;
+  let videoStream = null;
+  let isCounting = false;
+  let currentSource = 'camera';
+  let uploadedPhoto = null;
+  let timerSeconds = 0;
+  const timerOptions = [0, 3, 5, 10];
+  let timerIndex = 0;
+
+  // ── Sheet ──
+  function openSheet() {
+    document.getElementById('sheet-overlay').classList.add('open');
+    document.getElementById('sheet').classList.add('open');
+  }
+
+  function closeSheet() {
+    document.getElementById('sheet-overlay').classList.remove('open');
+    document.getElementById('sheet').classList.remove('open');
+  }
+
+  // ── Timer ──
+  function cycleTimer() {
+    timerIndex = (timerIndex + 1) % timerOptions.length;
+    timerSeconds = timerOptions[timerIndex];
+    const btn = document.getElementById('timer-btn');
+    btn.textContent = timerSeconds === 0 ? '⏱' : timerSeconds + 's';
+    btn.classList.toggle('active-timer', timerSeconds > 0);
+  }
+
+  // ── Source ──
+  function setSource(src) {
+    currentSource = src;
+    document.getElementById('tab-cam').classList.toggle('active', src === 'camera');
+    document.getElementById('tab-upload').classList.toggle('active', src === 'upload');
+
+    const video = document.getElementById('video-el');
+    const drop = document.getElementById('upload-drop');
+    const img = document.getElementById('uploaded-img');
+    const btn = document.getElementById('capture-btn');
+
+    if (src === 'camera') {
+      drop.style.display = 'none';
+      img.style.display = 'none';
+      video.style.display = 'block';
+      if (!videoStream) startCamera();
+      else btn.disabled = false;
+    } else {
+      if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+      video.style.display = 'none';
+      if (uploadedPhoto) {
+        drop.style.display = 'none';
+        img.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '✅ Aplicar moldura';
+      } else {
+        drop.style.display = '';
+        img.style.display = 'none';
+        btn.disabled = true;
+        btn.textContent = '📸 Aplicar moldura';
+      }
+    }
+  }
+
+  // ── Camera ──
+  async function populateCameras() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter(d => d.kind === 'videoinput');
+      const sel = document.getElementById('cam-select');
+      const prev = sel.value;
+      sel.innerHTML = cams.map((d, i) =>
+        `<option value="${d.deviceId}">${d.label || 'Câmera ' + (i+1)}</option>`
+      ).join('');
+      if (prev) sel.value = prev;
+    } catch(_) {}
+  }
+
+  async function startCamera() {
+    try {
+      if (videoStream) videoStream.getTracks().forEach(t => t.stop());
+      const deviceId = document.getElementById('cam-select').value;
+      const constraints = {
+        video: deviceId
+          ? { deviceId: { exact: deviceId }, width: { ideal: 1080 }, height: { ideal: 1920 } }
+          : { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1920 } },
+        audio: false
+      };
+      videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+      const video = document.getElementById('video-el');
+      video.srcObject = videoStream;
+      video.style.display = 'block';
+      await populateCameras();
+      document.getElementById('capture-btn').disabled = false;
+      document.getElementById('capture-btn').textContent = '📸 Tirar Foto';
+      applyMirror();
+    } catch(e) {
+      alert('Erro ao acessar câmera: ' + e.message);
+    }
+  }
+
+  function applyMirror() {
+    const mirror = document.getElementById('mirror-check').checked;
+    document.getElementById('video-el').style.transform = mirror ? 'scaleX(-1)' : '';
+  }
+
+  // ── Frame ──
+  function loadFrameFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        frameImage = img;
+        document.getElementById('frame-overlay').src = ev.target.result;
+        document.getElementById('frame-overlay').style.display = 'block';
+        document.getElementById('frame-badge').classList.add('show');
+        document.querySelectorAll('.preset-item').forEach(x => x.classList.remove('active'));
+        closeSheet();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeFrame() {
+    frameImage = null;
+    document.getElementById('frame-overlay').style.display = 'none';
+    document.getElementById('frame-overlay').src = '';
+    document.getElementById('frame-badge').classList.remove('show');
+    document.querySelectorAll('.preset-item').forEach(x => x.classList.remove('active'));
+  }
+
+  // ── Photo upload ──
+  function loadPhotoFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        uploadedPhoto = img;
+        const el = document.getElementById('uploaded-img');
+        el.src = ev.target.result;
+        el.style.display = 'block';
+        document.getElementById('upload-drop').style.display = 'none';
+        document.getElementById('capture-btn').disabled = false;
+        document.getElementById('capture-btn').textContent = '✅ Aplicar moldura';
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ── Capture ──
+  function triggerCapture() {
+    if (isCounting) return;
+    if (currentSource === 'upload') { takePhoto(); return; }
+    if (timerSeconds > 0) startCountdown(timerSeconds);
+    else takePhoto();
+  }
+
+  function startCountdown(sec) {
+    isCounting = true;
+    document.getElementById('capture-btn').disabled = true;
+    const el = document.getElementById('countdown-el');
+    el.style.opacity = '1';
+    let n = sec;
+    el.textContent = n;
+    const iv = setInterval(() => {
+      n--;
+      if (n <= 0) {
+        clearInterval(iv);
+        el.style.opacity = '0';
+        el.textContent = '';
+        isCounting = false;
+        document.getElementById('capture-btn').disabled = false;
+        takePhoto();
+      } else {
+        el.textContent = n;
+      }
+    }, 1000);
+  }
+
+  function takePhoto() {
+    const canvas = document.getElementById('result-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = OUT_W;
+    canvas.height = OUT_H;
+
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, OUT_W, OUT_H);
+
+    if (currentSource === 'camera') {
+      const video = document.getElementById('video-el');
+      const mirror = document.getElementById('mirror-check').checked;
+      ctx.save();
+      if (mirror) { ctx.translate(OUT_W, 0); ctx.scale(-1, 1); }
+      const vw = video.videoWidth || OUT_W;
+      const vh = video.videoHeight || OUT_H;
+      const scale = Math.max(OUT_W / vw, OUT_H / vh);
+      const sw = vw * scale, sh = vh * scale;
+      ctx.drawImage(video, (OUT_W - sw) / 2, (OUT_H - sh) / 2, sw, sh);
+      ctx.restore();
+    } else if (uploadedPhoto) {
+      const img = uploadedPhoto;
+      const scale = Math.max(OUT_W / img.width, OUT_H / img.height);
+      const sw = img.width * scale, sh = img.height * scale;
+      ctx.drawImage(img, (OUT_W - sw) / 2, (OUT_H - sh) / 2, sw, sh);
+    }
+
+    if (frameImage) ctx.drawImage(frameImage, 0, 0, OUT_W, OUT_H);
+
+    // reset drive button
+    const driveBtn = document.getElementById('drive-btn');
+    driveBtn.textContent = '☁️ Salvar no Google Drive';
+    driveBtn.disabled = false;
+    document.getElementById('drive-link-row').style.display = 'none';
+    document.getElementById('drive-link-row').innerHTML = '';
+    document.getElementById('result-modal').classList.add('open');
+  }
+
+  function downloadResult(fmt) {
+    const canvas = document.getElementById('result-canvas');
+    const a = document.createElement('a');
+    a.download = `photobooth-1080x1920.${fmt}`;
+    a.href = canvas.toDataURL(fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.95);
+    a.click();
+  }
+
+  function retake() { closeModal(); }
+  function closeModal() { document.getElementById('result-modal').classList.remove('open'); }
+
+  // ── Presets ──
+  const PRESETS = [
+    { label: '🖤', draw: drawClassic },
+    { label: '🌈', draw: drawGradient },
+    { label: '🌟', draw: drawStars },
+    { label: '🌸', draw: drawFloral },
+    { label: '🎉', draw: drawConfetti },
+    { label: '⬜', draw: null },
+  ];
+
+  function buildPresets() {
+    const grid = document.getElementById('presets-grid');
+    PRESETS.forEach((p, i) => {
+      const el = document.createElement('div');
+      el.className = 'preset-item';
+      el.textContent = p.label;
+      el.onclick = () => applyPreset(i, el);
+      grid.appendChild(el);
+    });
+  }
+
+  function applyPreset(i, el) {
+    document.querySelectorAll('.preset-item').forEach(x => x.classList.remove('active'));
+    if (!PRESETS[i].draw) { removeFrame(); closeSheet(); return; }
+    el.classList.add('active');
+    const c = document.createElement('canvas');
+    c.width = OUT_W; c.height = OUT_H;
+    PRESETS[i].draw(c.getContext('2d'), OUT_W, OUT_H);
+    const img = new Image();
+    img.onload = () => {
+      frameImage = img;
+      document.getElementById('frame-overlay').src = img.src;
+      document.getElementById('frame-overlay').style.display = 'block';
+      document.getElementById('frame-badge').classList.add('show');
+      closeSheet();
+    };
+    img.src = c.toDataURL();
+  }
+
+  function drawClassic(ctx, w, h) {
+    const s = Math.round(w * 0.04);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0,0,w,s); ctx.fillRect(0,h-s,w,s);
+    ctx.fillRect(0,0,s,h); ctx.fillRect(w-s,0,s,h);
+  }
+
+  function drawGradient(ctx, w, h) {
+    const s = Math.round(w * 0.05);
+    const g = ctx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0,'#a78bfa'); g.addColorStop(0.5,'#60a5fa'); g.addColorStop(1,'#f472b6');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,w,s); ctx.fillRect(0,h-s,w,s);
+    ctx.fillRect(0,0,s,h); ctx.fillRect(w-s,0,s,h);
+  }
+
+  function drawStars(ctx, w, h) {
+    drawClassic(ctx, w, h);
+    ctx.fillStyle = '#e5ff47';
+    ctx.font = `${Math.round(w*0.04)}px serif`;
+    for (let i = 0; i < 30; i++) {
+      const x = Math.random() * w;
+      const top = Math.random() < 0.5;
+      const y = top ? Math.random() * h * 0.035 + h * 0.01 : h - Math.random() * h * 0.035;
+      ctx.fillText('★', x, y + w * 0.04);
+    }
+  }
+
+  function drawFloral(ctx, w, h) {
+    const s = Math.round(w * 0.045);
+    ctx.fillStyle = '#fbcfe8';
+    ctx.fillRect(0,0,w,s); ctx.fillRect(0,h-s,w,s);
+    ctx.fillRect(0,0,s,h); ctx.fillRect(w-s,0,s,h);
+  }
+
+  function drawConfetti(ctx, w, h) {
+    drawClassic(ctx, w, h);
+    const colors = ['#f472b6','#60a5fa','#34d399','#fbbf24','#a78bfa'];
+    const s = w * 0.04;
+    for (let i = 0; i < 120; i++) {
+      const x = Math.random() * w, y = Math.random() * h;
+      if (x < s || x > w-s || y < s || y > h-s) {
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.fillRect(x, y, w*0.008, w*0.008);
+      }
+    }
+  }
+
+  // ── Init ──
+  buildPresets();
+  setSource('camera');
+  populateCameras();
+
+  // ── Google Drive ──
+  const CLIENT_ID = '860017648870-u373usjckooa04065ddd5njhqpn07gmd.apps.googleusercontent.com';
+  const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+  let accessToken = null;
+  let tokenClient = null;
+
+  function googleLogin() {
+    if (!window.google) { alert('Google SDK ainda carregando, aguarde.'); return; }
+    if (!tokenClient) {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: (resp) => {
+          if (resp.error) { alert('Erro login: ' + resp.error); return; }
+          accessToken = resp.access_token;
+          // get user info
+          fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: 'Bearer ' + accessToken }
+          }).then(r => r.json()).then(info => {
+            document.getElementById('google-login-btn').style.display = 'none';
+            const badge = document.getElementById('google-user-badge');
+            badge.style.display = '';
+            badge.textContent = '✅ ' + (info.name || info.email);
+          });
+        }
+      });
+    }
+    tokenClient.requestAccessToken();
+  }
+
+  async function saveToDrive() {
+    if (!accessToken) {
+      alert('Faça login com o Google primeiro (botão no topo).');
+      return;
+    }
+    const btn = document.getElementById('drive-btn');
+    btn.textContent = '⏳ Salvando...';
+    btn.disabled = true;
+
+    const canvas = document.getElementById('result-canvas');
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+    const filename = `photobooth-${Date.now()}.jpg`;
+
+    // Create folder "PhotoBooth" if not exists, then upload
+    const folderId = await getOrCreateFolder('PhotoBooth');
+    const formData = new FormData();
+    formData.append('metadata', new Blob([JSON.stringify({
+      name: filename,
+      parents: [folderId]
+    })], { type: 'application/json' }));
+    formData.append('file', blob);
+
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + accessToken },
+      body: formData
+    });
+    const file = await res.json();
+
+    btn.textContent = '✅ Salvo no Drive!';
+    const row = document.getElementById('drive-link-row');
+    row.style.display = '';
+    row.innerHTML = `<a href="${file.webViewLink}" target="_blank" style="color:var(--accent)">🔗 Abrir no Drive</a>`;
+  }
+
+  async function getOrCreateFolder(name) {
+    // search existing
+    const q = encodeURIComponent(`name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    const data = await res.json();
+    if (data.files && data.files.length > 0) return data.files[0].id;
+
+    // create
+    const cr = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder' })
+    });
+    const folder = await cr.json();
+    return folder.id;
+  }
+</script>
+</body>
+</html>
