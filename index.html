@@ -1067,6 +1067,7 @@
           }).then(r => r.json()).then(info => {
             const display = info.name || info.email || 'Conectado';
             localStorage.setItem('pb_user', display);
+            localStorage.setItem('pb_email', info.email || '');
             localStorage.setItem('pb_autologin', '1');
             showUserBadge(display);
           });
@@ -1084,11 +1085,15 @@
   // login silencioso ao carregar se já autorizou antes
   window.addEventListener('load', () => {
     if (!localStorage.getItem('pb_autologin')) return;
+    // mostrar nome salvo imediatamente (token ainda carregando)
+    const savedName = localStorage.getItem('pb_user');
+    if (savedName) showUserBadge(savedName);
     const t = setInterval(() => {
       if (!window.google) return;
       clearInterval(t);
       ensureTokenClient();
-      tokenClient.requestAccessToken({ prompt: '' }); // sem popup
+      const hint = localStorage.getItem('pb_email') || '';
+      tokenClient.requestAccessToken({ prompt: '', login_hint: hint }); // sem popup
     }, 300);
   });
 
