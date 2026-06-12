@@ -1044,28 +1044,45 @@
   let accessToken = null;
   let tokenClient = null;
 
+  function onGoogleToken(resp) {
+    if (resp.error) return;
+    accessToken = resp.access_token;
+    fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    }).then(r => r.json()).then(info => {
+      document.getElementById('google-login-btn').style.display = 'none';
+      const badge = document.getElementById('google-user-badge');
+      badge.style.display = '';
+      badge.textContent = '✅ ' + (info.name || info.email);
+      // renovar token automaticamente 5 min antes de expirar (token dura ~1h)
+      clearTimeout(window._tokenRefreshTimer);
+      window._tokenRefreshTimer = setTimeout(() => tokenClient.requestAccessToken({ prompt: '' }), 55 * 60 * 1000);
+    });
+  }
+
+  function initTokenClient(withPrompt) {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      prompt: withPrompt ? '' : undefined,
+      callback: onGoogleToken,
+    });
+    tokenClient.requestAccessToken({ prompt: withPrompt ? '' : 'select_account' });
+  }
+
+  // tenta login silencioso ao carregar a página
+  window.addEventListener('load', () => {
+    const gsiInterval = setInterval(() => {
+      if (!window.google) return;
+      clearInterval(gsiInterval);
+      initTokenClient(true); // silent — sem popup
+    }, 300);
+  });
+
   function googleLogin() {
     if (!window.google) { alert('Google SDK ainda carregando, aguarde.'); return; }
-    if (!tokenClient) {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: (resp) => {
-          if (resp.error) { alert('Erro login: ' + resp.error); return; }
-          accessToken = resp.access_token;
-          // get user info
-          fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: { Authorization: 'Bearer ' + accessToken }
-          }).then(r => r.json()).then(info => {
-            document.getElementById('google-login-btn').style.display = 'none';
-            const badge = document.getElementById('google-user-badge');
-            badge.style.display = '';
-            badge.textContent = '✅ ' + (info.name || info.email);
-          });
-        }
-      });
-    }
-    tokenClient.requestAccessToken();
+    if (!tokenClient) initTokenClient(false);
+    else tokenClient.requestAccessToken({ prompt: 'select_account' });
   }
 
   async function saveToDrive() {
