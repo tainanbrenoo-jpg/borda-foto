@@ -440,6 +440,9 @@
     ✅ Moldura ativa &nbsp;<button style="background:none;border:none;color:var(--muted);cursor:pointer" onclick="removeFrame()">✕</button>
   </div>
 
+  <h3 style="margin-top:16px">Bordas predefinidas</h3>
+  <div class="presets-grid" id="custom-presets-grid"></div>
+
   <h3 style="margin-top:16px">Molduras rápidas</h3>
   <div class="presets-grid" id="presets-grid"></div>
 
@@ -799,7 +802,50 @@
     }
   }
 
+  // ── Bordas predefinidas do GitHub ──
+  const GITHUB_BASE = 'https://raw.githubusercontent.com/tainanbrenoo-jpg/borda-foto/main/';
+  const CUSTOM_FRAMES = [
+    { name: 'EU VOU 01', file: 'EU VOU 01 - cópia.png' },
+    // adicione mais aqui: { name: 'Nome', file: 'arquivo.png' }
+  ];
+
+  function buildCustomPresets() {
+    const grid = document.getElementById('custom-presets-grid');
+    if (CUSTOM_FRAMES.length === 0) {
+      grid.parentElement.style.display = 'none';
+      return;
+    }
+    CUSTOM_FRAMES.forEach((f, i) => {
+      const el = document.createElement('div');
+      el.className = 'preset-item';
+      el.title = f.name;
+      el.style.backgroundImage = `url(${GITHUB_BASE + encodeURIComponent(f.file)})`;
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.onclick = () => applyCustomFrame(f, el);
+      grid.appendChild(el);
+    });
+  }
+
+  function applyCustomFrame(f, el) {
+    document.querySelectorAll('.preset-item').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    const url = GITHUB_BASE + encodeURIComponent(f.file);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      frameImage = img;
+      document.getElementById('frame-overlay').src = url;
+      document.getElementById('frame-overlay').style.display = 'block';
+      document.getElementById('frame-badge').classList.add('show');
+      closeSheet();
+    };
+    img.onerror = () => alert('Erro ao carregar a borda. Verifique se o arquivo está no GitHub.');
+    img.src = url;
+  }
+
   // ── Init ──
+  buildCustomPresets();
   buildPresets();
   setSource('camera');
   populateCameras();
