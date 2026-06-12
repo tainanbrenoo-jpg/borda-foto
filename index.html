@@ -802,35 +802,43 @@
     }
   }
 
-  // ── Bordas predefinidas do GitHub ──
-  const GITHUB_BASE = 'https://raw.githubusercontent.com/tainanbrenoo-jpg/borda-foto/main/';
-  const CUSTOM_FRAMES = [
-    { name: 'EU VOU 01', file: 'EU VOU 01 - cópia.png' },
-    // adicione mais aqui: { name: 'Nome', file: 'arquivo.png' }
-  ];
+  // ── Bordas predefinidas do GitHub (auto) ──
+  const GITHUB_USER = 'tainanbrenoo-jpg';
+  const GITHUB_REPO = 'borda-foto';
+  const FRAMES_FOLDER = 'frames';
+  const GITHUB_BASE = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/main/${FRAMES_FOLDER}/`;
+  const GITHUB_API = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${FRAMES_FOLDER}`;
 
-  function buildCustomPresets() {
+  async function buildCustomPresets() {
     const grid = document.getElementById('custom-presets-grid');
-    if (CUSTOM_FRAMES.length === 0) {
-      grid.parentElement.style.display = 'none';
-      return;
+    try {
+      const res = await fetch(GITHUB_API);
+      if (!res.ok) throw new Error();
+      const files = await res.json();
+      const pngs = files.filter(f => f.name.match(/\.(png|jpg|jpeg|webp)$/i));
+      if (pngs.length === 0) {
+        grid.innerHTML = '<p style="color:var(--muted);font-size:0.78rem">Nenhuma borda na pasta frames/</p>';
+        return;
+      }
+      pngs.forEach(f => {
+        const url = GITHUB_BASE + encodeURIComponent(f.name);
+        const el = document.createElement('div');
+        el.className = 'preset-item';
+        el.title = f.name.replace(/\.[^.]+$/, '');
+        el.style.backgroundImage = `url(${url})`;
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center';
+        el.onclick = () => applyCustomFrame(url, f.name, el);
+        grid.appendChild(el);
+      });
+    } catch {
+      grid.innerHTML = '<p style="color:var(--muted);font-size:0.78rem">Crie a pasta frames/ no GitHub e suba seus PNGs.</p>';
     }
-    CUSTOM_FRAMES.forEach((f, i) => {
-      const el = document.createElement('div');
-      el.className = 'preset-item';
-      el.title = f.name;
-      el.style.backgroundImage = `url(${GITHUB_BASE + encodeURIComponent(f.file)})`;
-      el.style.backgroundSize = 'cover';
-      el.style.backgroundPosition = 'center';
-      el.onclick = () => applyCustomFrame(f, el);
-      grid.appendChild(el);
-    });
   }
 
-  function applyCustomFrame(f, el) {
+  function applyCustomFrame(url, name, el) {
     document.querySelectorAll('.preset-item').forEach(x => x.classList.remove('active'));
     el.classList.add('active');
-    const url = GITHUB_BASE + encodeURIComponent(f.file);
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -840,7 +848,7 @@
       document.getElementById('frame-badge').classList.add('show');
       closeSheet();
     };
-    img.onerror = () => alert('Erro ao carregar a borda. Verifique se o arquivo está no GitHub.');
+    img.onerror = () => alert('Erro ao carregar a borda.');
     img.src = url;
   }
 
