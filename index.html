@@ -973,50 +973,72 @@
     document.getElementById('ai-bg-result').style.display = 'none';
 
     try {
-      // pegar foto atual como base64
-      const canvas = document.getElementById('result-canvas');
-      const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
-
-      const body = {
-        contents: [{
-          parts: [
-            { text: `You are a photo editor. Take this photo of a person and place them naturally into this environment: ${prompt}. Keep the person looking realistic and well-integrated into the scene. Return only the edited image.` },
-            { inline_data: { mime_type: 'image/jpeg', data: base64 } }
-          ]
-        }],
-        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+      // 1. Gerar fundo com Imagen 3
+      const bgBody = {
+        instances: [{ prompt: `${prompt}, high quality, photorealistic, wide angle, no people` }],
+        parameters: { sampleCount: 1, aspectRatio: '9:16' }
       };
-
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_KEY}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      const bgRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GEMINI_KEY}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bgBody) }
       );
-      const data = await res.json();
+      const bgData = await bgRes.json();
+      if (bgData.error) throw new Error(bgData.error.message);
 
-      if (data.error) throw new Error(data.error.message);
+      const bgBase64 = bgData.predictions?.[0]?.bytesBase64Encoded;
+      if (!bgBase64) throw new Error('Nenhum fundo gerado. Tente outro prompt.');
 
-      // encontrar parte de imagem na resposta
-      const imgPart = data.candidates?.[0]?.content?.parts?.find(p => p.inline_data);
-      if (!imgPart) throw new Error('Nenhuma imagem gerada. Tente outro prompt.');
+      // 2. Carregar fundo gerado
+      const bgImg = await new Promise((res, rej) => {
+        const i = new Image(); i.onload = () => res(i); i.onerror = rej;
+        i.src = `data:image/png;base64,${bgBase64}`;
+      });
 
-      const imgData = imgPart.inline_data.data;
-      const mime = imgPart.inline_data.mime_type;
-      const src = `data:${mime};base64,${imgData}`;
+      // 3. Recortar pessoa da foto com segmentação
+      const srcCanvas = document.getElementById('result-canvas');
+      const personCanvas = document.createElement('canvas');
+      personCanvas.width = srcCanvas.width; personCanvas.height = srcCanvas.height;
+      await segmentPerson(srcCanvas, personCanvas);
 
-      // converter para blob para download/drive
-      const byteChars = atob(imgData);
-      const byteArr = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-      aiBgBlob = new Blob([byteArr], { type: mime });
+      // 4. Compor: fundo + pessoa
+      const finalCanvas = document.createElement('canvas');
+      finalCanvas.width = OUT_W; finalCanvas.height = OUT_H;
+      const ctx = finalCanvas.getContext('2d');
+      ctx.drawImage(bgImg, 0, 0, OUT_W, OUT_H);
+      ctx.drawImage(personCanvas, 0, 0, OUT_W, OUT_H);
 
-      document.getElementById('ai-bg-img').src = src;
+      // 5. Mostrar resultado
+      aiBgBlob = await new Promise(res => finalCanvas.toBlob(res, 'image/jpeg', 0.92));
+      document.getElementById('ai-bg-img').src = finalCanvas.toDataURL('image/jpeg', 0.92);
       document.getElementById('ai-bg-result').style.display = 'block';
+
     } catch (e) {
       alert('Erro ao gerar imagem: ' + e.message);
     } finally {
       btn.textContent = '✨ IA';
       btn.disabled = false;
     }
+  }
+
+  // segmenta a pessoa do canvas de origem para o canvas de destino (transparente no fundo)
+  async function segmentPerson(srcCanvas, dstCanvas) {
+    return new Promise(async (resolve) => {
+      if (!vbgSegmenter) {
+        vbgSegmenter = new SelfieSegmentation({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}` });
+        vbgSegmenter.setOptions({ modelSelection: 1 });
+        await vbgSegmenter.initialize();
+      }
+      vbgSegmenter.onResults(results => {
+        const ctx = dstCanvas.getContext('2d');
+        ctx.clearRect(0, 0, dstCanvas.width, dstCanvas.height);
+        ctx.drawImage(results.image, 0, 0, dstCanvas.width, dstCanvas.height);
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.drawImage(results.segmentationMask, 0, 0, dstCanvas.width, dstCanvas.height);
+        ctx.globalCompositeOperation = 'source-over';
+        resolve();
+      });
+      await vbgSegmenter.send({ image: srcCanvas });
+    });
   }
 
   function downloadAiBg() {
