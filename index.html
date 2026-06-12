@@ -533,10 +533,6 @@
     <div id="drive-link-row" style="display:none;width:100%;text-align:center;font-size:0.82rem;color:var(--accent)"></div>
     <!-- AI Background -->
     <div id="ai-bg-section" style="width:100%;border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
-      <div id="ai-key-row" style="display:flex;gap:8px;margin-bottom:8px">
-        <input id="ai-key-input" type="password" placeholder="Chave Gemini API (AIza...)" style="flex:1;padding:10px 14px;border-radius:50px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.82rem;outline:none">
-        <button onclick="saveGeminiKey()" style="background:var(--accent);color:#000;border:none;border-radius:50px;padding:10px 16px;font-size:0.82rem;font-weight:700;cursor:pointer">Salvar</button>
-      </div>
       <div style="display:flex;gap:8px;margin-bottom:8px">
         <input id="ai-bg-prompt" type="text" placeholder="Ex: praia tropical, cidade à noite, floresta..." style="flex:1;padding:10px 14px;border-radius:50px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:0.85rem;outline:none">
         <button onclick="generateAiBg()" id="ai-bg-btn" style="background:linear-gradient(135deg,#8b5cf6,#3b82f6);color:white;border:none;border-radius:50px;padding:10px 18px;font-size:0.85rem;font-weight:600;cursor:pointer;white-space:nowrap">✨ IA</button>
@@ -959,11 +955,6 @@
   }
 
   async function generateAiBg() {
-    if (!GEMINI_KEY) {
-      document.getElementById('ai-key-row').style.display = 'flex';
-      alert('Digite sua chave Gemini API primeiro.');
-      return;
-    }
     const prompt = document.getElementById('ai-bg-prompt').value.trim();
     if (!prompt) { alert('Digite um ambiente. Ex: praia tropical, cidade à noite...'); return; }
 
@@ -973,25 +964,12 @@
     document.getElementById('ai-bg-result').style.display = 'none';
 
     try {
-      // 1. Gerar fundo com Imagen 3
-      const bgBody = {
-        instances: [{ prompt: `${prompt}, high quality, photorealistic, wide angle, no people` }],
-        parameters: { sampleCount: 1, aspectRatio: '9:16' }
-      };
-      const bgRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${GEMINI_KEY}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bgBody) }
-      );
-      const bgData = await bgRes.json();
-      if (bgData.error) throw new Error(bgData.error.message);
-
-      const bgBase64 = bgData.predictions?.[0]?.bytesBase64Encoded;
-      if (!bgBase64) throw new Error('Nenhum fundo gerado. Tente outro prompt.');
-
-      // 2. Carregar fundo gerado
+      // 1. Gerar fundo com Pollinations.ai (gratuito, sem chave)
+      const bgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ', high quality, photorealistic, wide angle, no people')}?width=1080&height=1920&nologo=true&seed=${Date.now()}`;
       const bgImg = await new Promise((res, rej) => {
-        const i = new Image(); i.onload = () => res(i); i.onerror = rej;
-        i.src = `data:image/png;base64,${bgBase64}`;
+        const i = new Image(); i.crossOrigin = 'anonymous';
+        i.onload = () => res(i); i.onerror = rej;
+        i.src = bgUrl;
       });
 
       // 3. Recortar pessoa da foto com segmentação
