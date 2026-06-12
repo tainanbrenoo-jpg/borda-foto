@@ -398,6 +398,7 @@
     <div class="dim-badge">1080 × 1920</div>
     <button id="google-login-btn" class="btn-modal btn-modal-ghost" style="padding:7px 14px;font-size:0.8rem;border-radius:50px;white-space:nowrap" onclick="googleLogin()">🔑 Login Google</button>
     <span id="google-user-badge" style="display:none;font-size:0.78rem;color:var(--accent)"></span>
+    <button id="logout-btn" onclick="googleLogout()" style="display:none;padding:7px 14px;font-size:0.8rem;border-radius:50px;white-space:nowrap;background:transparent;border:1px solid #555;color:var(--text-muted);cursor:pointer">Sair</button>
   </div>
 </header>
 
@@ -1058,7 +1059,21 @@
     const badge = document.getElementById('google-user-badge');
     badge.style.display = '';
     badge.textContent = '✅ ' + name;
+    document.getElementById('logout-btn').style.display = '';
     document.getElementById('login-gate').style.display = 'none';
+  }
+
+  function googleLogout() {
+    accessToken = null;
+    tokenClient = null;
+    localStorage.removeItem('pb_autologin');
+    localStorage.removeItem('pb_user');
+    localStorage.removeItem('pb_email');
+    clearTimeout(window._tokenRefreshTimer);
+    document.getElementById('google-user-badge').style.display = 'none';
+    document.getElementById('logout-btn').style.display = 'none';
+    document.getElementById('google-login-btn').style.display = '';
+    document.getElementById('login-gate').style.display = 'flex';
   }
 
   function ensureTokenClient() {
