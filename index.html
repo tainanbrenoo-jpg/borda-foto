@@ -410,8 +410,9 @@
     <button class="tab-btn" id="tab-batch" onclick="setSource('batch')">📦 Lote</button>
   </div>
 
-  <div class="booth-outer" id="booth">
+  <div class="booth-outer" id="booth" style="position:relative" onclick="tapToFocus(event, videoStream, 'video-el', 'focus-ring')">
     <video id="video-el" autoplay playsinline></video>
+    <div id="focus-ring" style="display:none;position:absolute;width:60px;height:60px;border:2px solid #fff;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);transition:opacity 0.4s"></div>
     <div class="upload-drop" id="upload-drop" style="display:none"
          onclick="document.getElementById('photo-input').click()">
       <div class="big">🖼️</div>
@@ -539,8 +540,9 @@
   </div>
 
   <!-- STEP 3: camera -->
-  <div id="cm-step-camera" style="display:none;position:absolute;inset:0;background:#000">
+  <div id="cm-step-camera" style="display:none;position:absolute;inset:0;background:#000" onclick="tapToFocus(event, cmVideoStream, 'cm-video', 'cm-focus-ring')">
     <video id="cm-video" autoplay playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></video>
+    <div id="cm-focus-ring" style="display:none;position:absolute;width:60px;height:60px;border:2px solid #fff;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);transition:opacity 0.4s"></div>
     <img id="cm-frame-overlay" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none">
     <div id="cm-countdown" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:7rem;font-weight:900;color:#fff;text-shadow:0 0 40px #000;pointer-events:none;opacity:0"></div>
     <div id="cm-tap-hint" onclick="cmStartCountdown()" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:60px;cursor:pointer">
@@ -715,6 +717,32 @@
   function applyMirror() {
     const mirror = document.getElementById('mirror-check').checked;
     document.getElementById('video-el').style.transform = mirror ? 'scaleX(-1)' : '';
+  }
+
+  async function tapToFocus(e, stream, videoId, ringId) {
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0];
+    if (!track) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    // show focus ring
+    const ringEl = document.getElementById(ringId || 'focus-ring');
+    if (ringEl) {
+      ringEl.style.left = (e.clientX - rect.left) + 'px';
+      ringEl.style.top = (e.clientY - rect.top) + 'px';
+      ringEl.style.display = 'block';
+      ringEl.style.opacity = '1';
+      setTimeout(() => { ringEl.style.opacity = '0'; setTimeout(() => { ringEl.style.display = 'none'; }, 400); }, 1000);
+    }
+    // apply focus if supported
+    try {
+      const caps = track.getCapabilities();
+      if (caps.focusMode && caps.focusMode.includes('manual')) {
+        await track.applyConstraints({ advanced: [{ focusMode: 'manual', pointsOfInterest: [{ x, y }] }] });
+        setTimeout(() => track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}), 2000);
+      }
+    } catch(e) {}
   }
 
   // ── Frame ──
