@@ -695,8 +695,8 @@
       const deviceId = document.getElementById('cam-select').value;
       const constraints = {
         video: deviceId
-          ? { deviceId: { exact: deviceId }, width: { ideal: 1080 }, height: { ideal: 1920 } }
-          : { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1920 } },
+          ? { deviceId: { exact: deviceId }, width: { ideal: 3840 }, height: { ideal: 2160 }, advanced: [{ focusMode: 'continuous' }] }
+          : { facingMode: 'user', width: { ideal: 3840 }, height: { ideal: 2160 }, advanced: [{ focusMode: 'continuous' }] },
         audio: false
       };
       videoStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -1079,7 +1079,15 @@
     // start camera
     if (cmVideoStream) { cmVideoStream.getTracks().forEach(t => t.stop()); }
     try {
-      cmVideoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      cmVideoStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
+          focusMode: 'continuous',
+          advanced: [{ focusMode: 'continuous' }]
+        }, audio: false
+      });
       document.getElementById('cm-video').srcObject = cmVideoStream;
     } catch { alert('Não foi possível acessar a câmera.'); }
   }
@@ -1139,7 +1147,7 @@
   function cmDownload() {
     const canvas = document.getElementById('cm-result-canvas');
     const a = document.createElement('a');
-    a.href = canvas.toDataURL('image/jpeg', 0.92);
+    a.href = canvas.toDataURL('image/jpeg', 1.0);
     a.download = `photoexp-${Date.now()}.jpg`;
     a.click();
   }
@@ -1158,7 +1166,7 @@
     const btn = document.getElementById('cm-drive-btn');
     btn.textContent = '⏳ Enviando...'; btn.disabled = true;
     const canvas = document.getElementById('cm-result-canvas');
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 1.0));
     const filename = `photoexp-${Date.now()}.jpg`;
     const folderId = await getOrCreateFolder('PhotoBooth');
     const form = new FormData();
@@ -1244,7 +1252,7 @@
           const sw = img.width * scale, sh = img.height * scale;
           ctx.drawImage(img, (OUT_W - sw) / 2, (OUT_H - sh) / 2, sw, sh);
           if (frameImage) ctx.drawImage(frameImage, 0, 0, OUT_W, OUT_H);
-          canvas.toBlob(blob => resolve({ name: file.name.replace(/\.[^.]+$/, '') + '.jpg', blob }), 'image/jpeg', 0.92);
+          canvas.toBlob(blob => resolve({ name: file.name.replace(/\.[^.]+$/, '') + '.jpg', blob }), 'image/jpeg', 1.0);
         };
         img.onerror = reject;
         img.src = ev.target.result;
@@ -1444,7 +1452,7 @@
     btn.disabled = true;
 
     const canvas = document.getElementById('result-canvas');
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 1.0));
     const filename = `photobooth-${Date.now()}.jpg`;
 
     // Create folder "PhotoBooth" if not exists, then upload
